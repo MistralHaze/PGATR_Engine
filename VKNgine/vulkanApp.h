@@ -129,7 +129,7 @@ class vulkanApp
     //Renderizado acabado, ya se puede presentar.
     VkSemaphore _renderFinishedSemaphore;
 
-    bool alreadeCreatedDSL=false;
+    bool alreadyCreatedDSL=false;
 
   public:
     void run ( );

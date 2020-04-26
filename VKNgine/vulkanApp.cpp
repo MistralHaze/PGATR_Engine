@@ -227,6 +227,7 @@ void vulkanApp::createLogicalDevice ( )
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.samplerAnisotropy = VK_TRUE;
+  deviceFeatures.geometryShader = VK_TRUE;
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -458,10 +459,12 @@ void vulkanApp::createDescriptorSetLayout ( )
 void vulkanApp::createGraphicsPipeline ( )
 {
   //Ya están los shaders compilados
-  auto vertShaderCode = readFile ( "./content/vk_shaders/vert.spv" );
-  auto fragShaderCode = readFile ( "./content/vk_shaders/frag.spv" );
+	std::vector < char > vertShaderCode = readFile ( "./content/geompassthrough/vert.spv" );
+  std::vector < char > geomShaderCode = readFile ( "./content/geompassthrough/geom.spv" );
+  std::vector < char > fragShaderCode = readFile ( "./content/geompassthrough/frag.spv" );
 
   VkShaderModule vertShaderModule = createShaderModule ( vertShaderCode );
+  VkShaderModule geomShaderModule = createShaderModule ( geomShaderCode );
   VkShaderModule fragShaderModule = createShaderModule ( fragShaderCode );
 
   //Generacion y configuracion de cada una de las stages del pipeline
@@ -472,6 +475,13 @@ void vulkanApp::createGraphicsPipeline ( )
   vertShaderStageInfo.module = vertShaderModule;
   vertShaderStageInfo.pName = "main";
 
+  VkPipelineShaderStageCreateInfo geomShaderStageInfo = {};
+  geomShaderStageInfo.sType =
+    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  geomShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+  geomShaderStageInfo.module = geomShaderModule;
+  geomShaderStageInfo.pName = "main";
+
   VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
   fragShaderStageInfo.sType =
     VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -481,7 +491,7 @@ void vulkanApp::createGraphicsPipeline ( )
 
   //Generacion de las stages del pipeline
   VkPipelineShaderStageCreateInfo
-    shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+    shaderStages[] = { vertShaderStageInfo, geomShaderStageInfo, fragShaderStageInfo };
 
   //Estas son todas las funciones fijas dentro del pipeline, que hay que
   //configurarlas de manera explicita.
@@ -501,7 +511,7 @@ void vulkanApp::createGraphicsPipeline ( )
   vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
   vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data ( );
   //------------------------------------------------------
-  //Input assembly: Deifnicion de topología
+  //Input assembly: Definición de topología
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
   inputAssembly.sType =
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -580,10 +590,10 @@ void vulkanApp::createGraphicsPipeline ( )
 
 
   //Layout -> Manejo de los uniforms de los shaders
-  if (!alreadeCreatedDSL)
+  if (!alreadyCreatedDSL)
   {
     createDescriptorSetLayout ( );
-    alreadeCreatedDSL=true;
+    alreadyCreatedDSL=true;
   }
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
@@ -602,7 +612,7 @@ void vulkanApp::createGraphicsPipeline ( )
 
   VkGraphicsPipelineCreateInfo pipelineInfo = {};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
+  pipelineInfo.stageCount = 3;
   pipelineInfo.pStages = shaderStages;
   pipelineInfo.pVertexInputState = &vertexInputInfo;
   pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -627,6 +637,7 @@ void vulkanApp::createGraphicsPipeline ( )
   }
 
   vkDestroyShaderModule ( _device, fragShaderModule, nullptr );
+  vkDestroyShaderModule ( _device, geomShaderModule, nullptr );
   vkDestroyShaderModule ( _device, vertShaderModule, nullptr );
 }
 
@@ -1485,8 +1496,8 @@ void vulkanApp::createCommandBuffers ( )
     clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
 
     //Efecto tormenta, el _color de limpiado es diferente en cada frambuffer se aprecia que no es regular el render
-    //if (i%2==0) clearValues[0]._color = { 0.0f, 0.0f, 0.0f, 1.0f };
-    //else        clearValues[0]._color = { 1.0f, 1.0f, 1.0f, 1.0f };
+    //if (i%2==0) clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    //else        clearValues[0].color = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     clearValues[1].depthStencil = { 1.0f, 0 };
 
@@ -1579,7 +1590,7 @@ void vulkanApp::updateUniformBuffer ( )
                                   /( float ) _swapChainExtent.height,
                                 0.1f,
                                 10.0f );
-  ubo._proj[1][1] *= -1;
+  ubo._proj[1][1] *= -1; // switching from OGL to Vulkan sys. coord.
 
   void* data;
   vkMapMemory ( _device,
@@ -1666,7 +1677,7 @@ VkShaderModule vulkanApp::createShaderModule ( const std::vector < char >& code 
   VkShaderModuleCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   createInfo.codeSize = code.size ( );
-  createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data ( ));
+  createInfo.pCode = (const uint32_t*)( code.data ( ) );
 
   VkShaderModule shaderModule;
   if (
@@ -1820,7 +1831,7 @@ bool vulkanApp::isDeviceSuitable ( VkPhysicalDevice ldevice )
   return  lindices.isComplete ( )
           && extensionsSupported
           && supportedFeatures.samplerAnisotropy
-          //&& supportedFeatures.depthClamp
+          && supportedFeatures.geometryShader
           ;
 }
 
