@@ -459,9 +459,9 @@ void vulkanApp::createDescriptorSetLayout ( )
 void vulkanApp::createGraphicsPipeline ( )
 {
   //Ya están los shaders compilados
-	std::vector < char > vertShaderCode = readFile ( "./content/geompassthrough/vert.spv" );
-  std::vector < char > geomShaderCode = readFile ( "./content/geompassthrough/geom.spv" );
-  std::vector < char > fragShaderCode = readFile ( "./content/geompassthrough/frag.spv" );
+  std::vector < char > vertShaderCode = readFile ( "./content/vk_shaders/geompassthrough/vert.spv" );
+  std::vector < char > geomShaderCode = readFile ( "./content/vk_shaders/geompassthrough/geom.spv" );
+  std::vector < char > fragShaderCode = readFile ( "./content/vk_shaders/geompassthrough/frag.spv" );
 
   VkShaderModule vertShaderModule = createShaderModule ( vertShaderCode );
   VkShaderModule geomShaderModule = createShaderModule ( geomShaderCode );
