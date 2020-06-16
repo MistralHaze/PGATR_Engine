@@ -529,9 +529,17 @@ void vulkanApp::createGraphicsPipeline ( )
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
   inputAssembly.sType =
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  //inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+    //inputAssembly.flags =0;
   inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+  //Tessellation Pipeline State: Se necesita para usar shaders de teselación
+  //Patch control points es 3 porque usamos triangulos
+  VkPipelineTessellationStateCreateInfo tessellationState{};
+  tessellationState.sType=VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+  tessellationState.pNext=NULL;
+  tessellationState.patchControlPoints=3;
 
   //El viewport (VkPipelineViewportStateCreateInfo) Se genera configurando el viewport y el scissor
   VkViewport viewport = {};
@@ -640,6 +648,7 @@ void vulkanApp::createGraphicsPipeline ( )
   pipelineInfo.renderPass = _renderPass;
   pipelineInfo.subpass = 0;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo.pTessellationState = &tessellationState;
 
   if ( vkCreateGraphicsPipelines ( _device,
                                    VK_NULL_HANDLE,
