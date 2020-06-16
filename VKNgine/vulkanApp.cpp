@@ -230,15 +230,8 @@ void vulkanApp::createLogicalDevice ( )
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.samplerAnisotropy = VK_TRUE;
   //deviceFeatures.geometryShader = VK_TRUE;
+  deviceFeatures.tessellationShader=VK_TRUE;
 
-  if(deviceFeatures.tessellationShader)
-  {
-    deviceFeatures.tessellationShader=VK_TRUE;
-  }
-  else
-  {
-			throw std::runtime_error("Selected GPU does not support tessellation shaders!");
-  }
   
 
   VkDeviceCreateInfo createInfo = {};
@@ -537,6 +530,7 @@ void vulkanApp::createGraphicsPipeline ( )
   inputAssembly.sType =
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
   inputAssembly.primitiveRestartEnable = VK_FALSE;
 
   //El viewport (VkPipelineViewportStateCreateInfo) Se genera configurando el viewport y el scissor
