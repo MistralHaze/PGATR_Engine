@@ -25,10 +25,12 @@ const int WIDTH = 800;
 const int HEIGHT = 600;
 
 const std::string MODEL_PATH = "./content/models/chalet.obj";
+//const std::string MODEL_PATH = "./content/models/Handgun_obj.obj";
+
 const std::string TEXTURE_PATH = "./content/textures/chalet.jpg";
 
 const std::vector < const char* > validationLayers = {
-  "VK_LAYER_KHRONOS_validation",
+  "VK_LAYER_KHRONOS_validation"
 //  "VK_LAYER_LUNARG_standard_validation"
 };
 
@@ -227,7 +229,17 @@ void vulkanApp::createLogicalDevice ( )
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.samplerAnisotropy = VK_TRUE;
-  deviceFeatures.geometryShader = VK_TRUE;
+  //deviceFeatures.geometryShader = VK_TRUE;
+
+  if(deviceFeatures.tessellationShader)
+  {
+    deviceFeatures.tessellationShader=VK_TRUE;
+  }
+  else
+  {
+			throw std::runtime_error("Selected GPU does not support tessellation shaders!");
+  }
+  
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -323,7 +335,7 @@ void vulkanApp::createSwapChain ( )
   //Activar clipping
   createInfo.clipped = VK_TRUE;
 
-  //Se crea la _swapChain al ginal
+  //Se crea la _swapChain al final
   if ( vkCreateSwapchainKHR ( _device, &createInfo, nullptr, &_swapChain )
     != VK_SUCCESS )
   {
@@ -459,12 +471,14 @@ void vulkanApp::createDescriptorSetLayout ( )
 void vulkanApp::createGraphicsPipeline ( )
 {
   //Ya están los shaders compilados
-  std::vector < char > vertShaderCode = readFile ( "./content/vk_shaders/geompassthrough/vert.spv" );
-  std::vector < char > geomShaderCode = readFile ( "./content/vk_shaders/geompassthrough/geom.spv" );
-  std::vector < char > fragShaderCode = readFile ( "./content/vk_shaders/geompassthrough/frag.spv" );
+  std::vector < char > vertShaderCode = readFile ( "./content/vk_shaders/tesellation/fwRendering.vert.spv" );
+  std::vector < char > tesControlShaderCode = readFile ( "./content/vk_shaders/tesellation/fwRendering.trian.tesc.spv" );
+  std::vector < char > tesEvaluationShaderCode = readFile ( "./content/vk_shaders/tesellation/fwRendering.trian.tese.spv" );
+  std::vector < char > fragShaderCode = readFile ( "./content/vk_shaders/tesellation/fwRendering.frag.spv" );
 
   VkShaderModule vertShaderModule = createShaderModule ( vertShaderCode );
-  VkShaderModule geomShaderModule = createShaderModule ( geomShaderCode );
+  VkShaderModule tesControlShaderModule = createShaderModule ( tesControlShaderCode );
+  VkShaderModule tesEvaluationShaderModule = createShaderModule ( tesEvaluationShaderCode );
   VkShaderModule fragShaderModule = createShaderModule ( fragShaderCode );
 
   //Generacion y configuracion de cada una de las stages del pipeline
@@ -475,12 +489,19 @@ void vulkanApp::createGraphicsPipeline ( )
   vertShaderStageInfo.module = vertShaderModule;
   vertShaderStageInfo.pName = "main";
 
-  VkPipelineShaderStageCreateInfo geomShaderStageInfo = {};
-  geomShaderStageInfo.sType =
+  VkPipelineShaderStageCreateInfo tesControlShaderStageInfo = {};
+  tesControlShaderStageInfo.sType =
     VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  geomShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-  geomShaderStageInfo.module = geomShaderModule;
-  geomShaderStageInfo.pName = "main";
+  tesControlShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+  tesControlShaderStageInfo.module = tesControlShaderModule;
+  tesControlShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo tesEvaluationShaderStageInfo = {};
+  tesEvaluationShaderStageInfo.sType =
+    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  tesEvaluationShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+  tesEvaluationShaderStageInfo.module = tesEvaluationShaderModule;
+  tesEvaluationShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
   fragShaderStageInfo.sType =
@@ -491,7 +512,7 @@ void vulkanApp::createGraphicsPipeline ( )
 
   //Generacion de las stages del pipeline
   VkPipelineShaderStageCreateInfo
-    shaderStages[] = { vertShaderStageInfo, geomShaderStageInfo, fragShaderStageInfo };
+    shaderStages[] = { vertShaderStageInfo, tesControlShaderStageInfo, tesEvaluationShaderStageInfo, fragShaderStageInfo };
 
   //Estas son todas las funciones fijas dentro del pipeline, que hay que
   //configurarlas de manera explicita.
@@ -637,7 +658,8 @@ void vulkanApp::createGraphicsPipeline ( )
   }
 
   vkDestroyShaderModule ( _device, fragShaderModule, nullptr );
-  vkDestroyShaderModule ( _device, geomShaderModule, nullptr );
+  vkDestroyShaderModule ( _device, tesControlShaderModule, nullptr );
+  vkDestroyShaderModule ( _device, tesEvaluationShaderModule, nullptr );
   vkDestroyShaderModule ( _device, vertShaderModule, nullptr );
 }
 
@@ -1832,6 +1854,7 @@ bool vulkanApp::isDeviceSuitable ( VkPhysicalDevice ldevice )
           && extensionsSupported
           && supportedFeatures.samplerAnisotropy
           && supportedFeatures.geometryShader
+          && supportedFeatures.tessellationShader
           ;
 }
 
