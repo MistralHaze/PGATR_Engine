@@ -32,6 +32,7 @@ const std::vector < const char* > deviceExtensions = {
 
 void vulkanApp::run ( )
 {
+  std::cout << "Running a Headless Vulkan Compute " << std::endl;
   runVulkanCompute ( );
   cleanup ( );
 }
@@ -41,9 +42,17 @@ void vulkanApp::runVulkanCompute ( )
 {
   //Init
   createInstance ( );
+  std::cout << "instance created correctly" << std::endl;
+
   setupDebugCallback ( );
+  std::cout << "callbacks created correctly" << std::endl;
+
   pickPhysicalDevice ( );
+  std::cout << "physDevice picked correctly" << std::endl;
+
   createLogicalDevice ( );
+  std::cout << "logicDevice created correctly" << std::endl;
+
 
   //Renderconfig
   createComputePipeline ( );
@@ -71,9 +80,9 @@ void vulkanApp::createInstance ( )
 
   VkApplicationInfo appInfo = {};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pApplicationName = "Vulkan App";
+  appInfo.pApplicationName = "Vulkan Compute App";
   appInfo.applicationVersion = VK_MAKE_VERSION ( 1, 0, 0 );
-  appInfo.pEngineName = "No Engine";
+  appInfo.pEngineName = "SurfacelessEngine";
   appInfo.engineVersion = VK_MAKE_VERSION ( 1, 0, 0 );
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -81,6 +90,7 @@ void vulkanApp::createInstance ( )
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   createInfo.pApplicationInfo = &appInfo; //Aqui le pasamos el appInfo!!!
 
+  //VK_EXT_DEBUG_REPORT_EXTENSION_NAME es una extension y se mete al instance aqui
   auto extensions = getRequiredExtensions ( );
   createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size ( ));
   createInfo.ppEnabledExtensionNames = extensions.data ( );
@@ -95,6 +105,7 @@ void vulkanApp::createInstance ( )
     createInfo.enabledLayerCount = 0;
   }
 
+  //La instancia la creamos aqui! Ojo que la guardamos en _instance
   if ( vkCreateInstance ( &createInfo, nullptr, &_instance )
     != VK_SUCCESS )
   {
@@ -124,7 +135,7 @@ void vulkanApp::setupDebugCallback ( )
   }
 }
 
-//4) Pillar el dispositivo físico
+//3) Coger un dispositivo físico compatible/preferible
 void vulkanApp::pickPhysicalDevice ( )
 {
   //Ver que dispositivos vulkan capable tenemos
@@ -142,8 +153,9 @@ void vulkanApp::pickPhysicalDevice ( )
 
   for ( const auto& ldevice : devices )
   {
-    if ( isDeviceSuitable ( ldevice ))
+    if ( isDeviceSuitableCompute ( ldevice ))
     {
+      //Recuerda! Actualmente estamos cogiendo el primero
       _physicalDevice = ldevice;
       break;
     }
@@ -155,47 +167,37 @@ void vulkanApp::pickPhysicalDevice ( )
   }
 }
 
-//5)Create Logical _device
+//4)Create Logical _device
 void vulkanApp::createLogicalDevice ( )
 {
-  QueueFamilyIndices lindices = findQueueFamilies ( _physicalDevice );
+  QueueFamilyIndices queueFamilyIndices = findQueueFamilies ( _physicalDevice );
 
   std::vector < VkDeviceQueueCreateInfo > queueCreateInfos;
-  std::set < int > uniqueQueueFamilies =
-    { lindices._graphicsFamily, lindices._presentFamily };
 
   float queuePriority = 1.0f;
-  for ( int queueFamily : uniqueQueueFamilies )
-  {
-    VkDeviceQueueCreateInfo queueCreateInfo = {};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = queueFamily;
-    queueCreateInfo.queueCount = 1;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
-    queueCreateInfos.push_back ( queueCreateInfo );
-  }
+
+  VkDeviceQueueCreateInfo queueCreateInfo = {};
+  queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  queueCreateInfo.queueFamilyIndex = queueFamilyIndices._computeFamily;
+  queueCreateInfo.queueCount = 1;
+  queueCreateInfo.pQueuePriorities = &queuePriority;
+  queueCreateInfos.push_back ( queueCreateInfo );
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
-  deviceFeatures.samplerAnisotropy = VK_TRUE;
-  deviceFeatures.geometryShader = VK_TRUE;
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
-  createInfo.queueCreateInfoCount =
-    static_cast<uint32_t>(queueCreateInfos.size ( ));
+  //Cuantas colas va a tener. En este caso 1
+  createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size ( ));
   createInfo.pQueueCreateInfos = queueCreateInfos.data ( );
-
   createInfo.pEnabledFeatures = &deviceFeatures;
-
-  createInfo.enabledExtensionCount =
-    static_cast<uint32_t>(deviceExtensions.size ( ));
-  createInfo.ppEnabledExtensionNames = deviceExtensions.data ( );
+  //El swapchain iria aqui como extension. Como no lo usamos no pongo nada 
+  createInfo.enabledExtensionCount = 0;
+  createInfo.ppEnabledExtensionNames = nullptr;
 
   if ( enableValidationLayers )
   {
-    createInfo.enabledLayerCount =
-      static_cast<uint32_t>(validationLayers.size ( ));
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size ( ));
     createInfo.ppEnabledLayerNames = validationLayers.data ( );
   }
   else
@@ -209,7 +211,7 @@ void vulkanApp::createLogicalDevice ( )
     throw std::runtime_error ( "failed to create logical _device!" );
   }
 
-  vkGetDeviceQueue ( _device, lindices._graphicsFamily, 0, &_computeQueue );
+  vkGetDeviceQueue ( _device, queueFamilyIndices._computeFamily, 0, &_computeQueue );
 }
 
 //8 Creación de los descriptor Sets
@@ -245,7 +247,7 @@ void vulkanApp::createDescriptorSetLayout ( )
   }
 }
 
-//9) Creación del pipeline gráfico
+//9) Creación del pipeline 
 void vulkanApp::createComputePipeline ( )
 {
   //Ya están los shaders compilados
@@ -340,7 +342,7 @@ void vulkanApp::createCommandPool ( )
 
   VkCommandPoolCreateInfo poolInfo = {};
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  poolInfo.queueFamilyIndex = queueFamilyIndices._graphicsFamily;
+  poolInfo.queueFamilyIndex = queueFamilyIndices._computeFamily;
 
   if ( vkCreateCommandPool ( _device, &poolInfo, nullptr, &_commandPool )
     != VK_SUCCESS )
@@ -691,28 +693,22 @@ VkShaderModule vulkanApp::createShaderModule ( const std::vector < char >& code 
 }
 
 
-bool vulkanApp::isDeviceSuitable ( VkPhysicalDevice ldevice )
+bool vulkanApp::isDeviceSuitableCompute ( VkPhysicalDevice ldevice )
 {
-  QueueFamilyIndices lindices = findQueueFamilies ( ldevice );
-
   bool extensionsSupported = checkDeviceExtensionSupport ( ldevice );
-
   if ( extensionsSupported )
   {
-   /* SwapChainSupportDetails
-      swapChainSupport = querySwapChainSupport ( ldevice );*/
-    //swapChainAdequate = !swapChainSupport._formats.empty() &&
-    //  !swapChainSupport._presentModes.empty();
+    //?
   }
-
   VkPhysicalDeviceFeatures supportedFeatures;
   vkGetPhysicalDeviceFeatures ( ldevice, &supportedFeatures );
 
-  return  lindices.isComplete ( )
-          && extensionsSupported
-          && supportedFeatures.samplerAnisotropy
-          && supportedFeatures.geometryShader
-          ;
+  //Como solo estamos trabajando con compute no hay que revisar si hay cola de 
+  //presentacion o de graficos. Lo que si que habria que revisar es el tamaño 
+  //maximo de workGroups o de invocaciones a shaders. Tambien podriamos mirar 
+  //si no nos vamos a pasar con el tamaño del buffer
+  //De momento como la aplicacion no es pesada simplemente devolveremos el primero. 
+  return true;
 }
 
 
@@ -747,7 +743,7 @@ bool vulkanApp::checkDeviceExtensionSupport ( VkPhysicalDevice ldevice )
 QueueFamilyIndices vulkanApp::findQueueFamilies ( VkPhysicalDevice ldevice )
 {
   //Indices de las colas
-  QueueFamilyIndices lindices;
+  QueueFamilyIndices queueFamilyIndices;
 
   //Numero de colas
   uint32_t queueFamilyCount = 0;
@@ -765,27 +761,14 @@ QueueFamilyIndices vulkanApp::findQueueFamilies ( VkPhysicalDevice ldevice )
   int i = 0;
   for ( const auto& queueFamily : queueFamilies )
   {
-    //Es una cola grafica?
+    //Es una cola de computo
     if ( queueFamily.queueCount > 0
-      && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT )
+      && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT )
     {
-      lindices._graphicsFamily = i;
+      queueFamilyIndices._computeFamily = i;
     }
 
-    //Para determinar si esta cola posee capacidad de presentacion
-    VkBool32 presentSupport = false;
-   /* vkGetPhysicalDeviceSurfaceSupportKHR ( ldevice,
-                                           i,
-                                           _surface,
-                                           &presentSupport );*/
-
-    //Posee capacidades de presentacion?
-    if ( queueFamily.queueCount > 0 && presentSupport )
-    {
-      lindices._presentFamily = i;
-    }
-
-    if ( lindices.isComplete ( ))
+    if ( queueFamilyIndices.isComplete ( ))
     {
       break;
     }
@@ -793,23 +776,13 @@ QueueFamilyIndices vulkanApp::findQueueFamilies ( VkPhysicalDevice ldevice )
     i++;
   }
 
-  return lindices;
+  return queueFamilyIndices;
 }
 
 
 std::vector < const char* > vulkanApp::getRequiredExtensions ( )
 {
   std::vector < const char* > extensions;
-
-  unsigned int glfwExtensionCount = 0;
-  const char** glfwExtensions;
-  glfwExtensions =
-    glfwGetRequiredInstanceExtensions ( &glfwExtensionCount );
-
-  for ( unsigned int i = 0; i < glfwExtensionCount; i++ )
-  {
-    extensions.push_back ( glfwExtensions[i] );
-  }
 
   if ( enableValidationLayers )
   {
@@ -877,6 +850,7 @@ VKAPI_CALL vulkanApp::debugCallback ( VkDebugReportFlagsEXT flags,
 {
   std::cerr << "validation layer: " << msg << std::endl;
 
+  //TODO: Esta reconversion porque?
   ( void ) flags;
   ( void ) objType;
   ( void ) obj;

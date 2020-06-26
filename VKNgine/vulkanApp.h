@@ -96,10 +96,7 @@ class vulkanApp
   public:
     void run ( );
 
-
     void runVulkanCompute ( );
-
-
 
     void cleanup ( );
 
@@ -165,7 +162,7 @@ class vulkanApp
 
     VkShaderModule createShaderModule ( const std::vector < char > &code );
 
-    bool isDeviceSuitable ( VkPhysicalDevice ldevice );
+    bool isDeviceSuitableCompute ( VkPhysicalDevice ldevice );
 
     bool checkDeviceExtensionSupport ( VkPhysicalDevice ldevice );
 

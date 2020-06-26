@@ -22,12 +22,12 @@
 //Queues Families
 struct QueueFamilyIndices
 {
-  int _graphicsFamily = -1;
-  int _presentFamily = -1;
+
+  int _computeFamily = -1;
 
   bool isComplete ( )
   {
-    return _graphicsFamily >= 0 && _presentFamily >= 0;
+    return _computeFamily >= 0;
   }
 };
 
