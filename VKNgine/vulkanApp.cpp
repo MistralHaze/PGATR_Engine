@@ -26,9 +26,14 @@ const std::vector < const char* > validationLayers = {
 //  "VK_LAYER_LUNARG_standard_validation"
 };
 
+//Not used here
 const std::vector < const char* > deviceExtensions = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
+
+const unsigned int numOfNumbersToOrder = 2097152; //2^21
+const float bufferSize = sizeof(float) * numOfNumbersToOrder;
+const unsigned int workGroupSize = 32;
 
 void vulkanApp::run ( )
 {
@@ -51,11 +56,13 @@ void vulkanApp::runVulkanCompute ( )
   std::cout << "physDevice picked correctly" << std::endl;
 
   createLogicalDevice ( );
-  std::cout << "logicDevice created correctly" << std::endl;
+  std::cout << "(logical)Device created correctly" << std::endl;
 
-
-  //Renderconfig
+  //Pipeline
   createComputePipeline ( );
+  std::cout << "pipeline created correctly" << std::endl;
+
+  createBuffer();
 
   //Commands
   createCommandPool ( );
@@ -220,18 +227,14 @@ void vulkanApp::createDescriptorSetLayout ( )
   VkDescriptorSetLayoutBinding uboLayoutBinding = {};
   uboLayoutBinding.binding = 0;
   uboLayoutBinding.descriptorCount = 1;
-  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; //VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
   uboLayoutBinding.pImmutableSamplers = nullptr;
-  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-  VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-  samplerLayoutBinding.binding = 1;
-  samplerLayoutBinding.descriptorCount = 1;
-  samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  samplerLayoutBinding.pImmutableSamplers = nullptr;
-  samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  //TODO: Uniforms go here.
 
-  std::array < VkDescriptorSetLayoutBinding, 2 > bindings = { uboLayoutBinding, samplerLayoutBinding };
+  std::array < VkDescriptorSetLayoutBinding, 1 > bindings = { uboLayoutBinding};
+
   VkDescriptorSetLayoutCreateInfo layoutInfo = {};
   layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size ( ));
@@ -247,11 +250,11 @@ void vulkanApp::createDescriptorSetLayout ( )
   }
 }
 
-//9) Creación del pipeline 
+//5) Creación del pipeline 
 void vulkanApp::createComputePipeline ( )
 {
   //Ya están los shaders compilados
-  std::vector < char > computeShaderCode = readFile ( "./content/vk_shaders/geompassthrough/vert.spv" );
+  std::vector < char > computeShaderCode = readFile ( "./content/vk_shaders/compute/sortingShader.spv" );
 
   VkShaderModule computeShaderModule = createShaderModule ( computeShaderCode );
 
@@ -262,10 +265,6 @@ void vulkanApp::createComputePipeline ( )
   compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
   compShaderStageInfo.module = computeShaderModule;
   compShaderStageInfo.pName = "main";
-
-  //Generacion de las stages del pipeline
-  VkPipelineShaderStageCreateInfo
-    shaderStages[] = { compShaderStageInfo};
 
   //Layout -> Manejo de los uniforms de los shaders
   if (!alreadyCreatedDSL)
@@ -288,28 +287,55 @@ void vulkanApp::createComputePipeline ( )
     throw std::runtime_error ( "failed to create pipeline layout!" );
   }
 
-  //FIXME: BIG CHANGES NEEDED HERE
 
-  VkGraphicsPipelineCreateInfo pipelineInfo = {};
-  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 1;
-  pipelineInfo.pStages = shaderStages;
+  VkComputePipelineCreateInfo pipelineInfo = {};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
   pipelineInfo.layout = _pipelineLayout;
-  pipelineInfo.subpass = 0;
+  pipelineInfo.stage = compShaderStageInfo;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  if ( vkCreateGraphicsPipelines ( _device,
+  if ( vkCreateComputePipelines ( _device,
                                    VK_NULL_HANDLE,
                                    1,
                                    &pipelineInfo,
                                    nullptr,
                                    &_computePipeline ) != VK_SUCCESS )
   {
-    throw std::runtime_error ( "failed to create graphics pipeline!" );
+    throw std::runtime_error ( "failed to create compute pipeline!" );
   }
 
 
   vkDestroyShaderModule ( _device, computeShaderModule, nullptr );
+}
+
+void vulkanApp::createBuffer()
+{
+    VkDeviceSize vkBufferSize = bufferSize;
+
+ /* createBuffer ( bufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                   | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer,
+                 stagingBufferMemory );*/
+    VkBuffer computeDataBuffer;
+    VkDeviceMemory computeDataBufferMemory;             
+
+    createBuffer(vkBufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                   | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                   computeDataBuffer, computeDataBufferMemory);
+
+  //FIXME: 
+  /*      should I use this? dunno           
+  void* data;
+  vkMapMemory ( _device, computeDataBufferMemory, 0, vkBufferSize, 0, &data );
+
+  //memcpy ( data, _indices.data ( ), ( size_t ) vkBufferSize );
+
+  vkUnmapMemory ( _device, computeDataBufferMemory );
+  */
+
 }
 
 

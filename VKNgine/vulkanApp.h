@@ -120,6 +120,8 @@ class vulkanApp
 
     void createCommandPool ( );
 
+    void createBuffer();
+
 
     VkFormat findSupportedFormat ( const std::vector < VkFormat > &candidates,
                                    VkImageTiling tiling,
