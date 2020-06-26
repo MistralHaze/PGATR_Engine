@@ -8,7 +8,7 @@ sudo apt-get -y install build-essential
 sudo apt-get -y install mesa-common-dev
 sudo apt-get -y install libglm-dev
 sudo apt-get install libglfw3-dev  -y 
-sudo apt install -y install libassimp-dev assimp-utils assimp-testmodels
+sudo apt install -y libassimp-dev assimp-utils assimp-testmodels
  
 #Instalación de las librerías estandar de desarrollo de vulkan (nvidia tested)
 sudo apt install -y libvulkan1 libvulkan-dev

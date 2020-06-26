@@ -65,50 +65,12 @@ class vulkanApp
     VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
     VkDevice _device;
 
-    //Colas de procesamiento gráfica y de presentacion (pueden estar por separado)
-    VkQueue _graphicsQueue;
-    VkQueue _presentQueue;
-
-    //Superficie de renderizado
-    VkSurfaceKHR _surface;
-
-    //Toda la configuracion de la swapchain
-    VkSwapchainKHR _swapChain;
-    //Formato utilizado por las imágenes del swapchain
-    VkFormat _swapChainImageFormat;
-    //Resolución de las imágenes
-    VkExtent2D _swapChainExtent;
-    //Vector de imágenes utilizado por la swapchain
-    std::vector < VkImage > _swapChainImages;
-    //Vector de presentador de imágenes utilizado por la swapchain
-    std::vector < VkImageView > _swapChainImageViews;
-    //Vector de almacenamiento de imágenes utilizado por la swapchain
-    std::vector < VkFramebuffer > _swapChainFramebuffers;
-
+    VkQueue _computeQueue;
 
     //Render pass y pipeline conf
-    VkRenderPass _renderPass;
     VkDescriptorSetLayout _descriptorSetLayout;
     VkPipelineLayout _pipelineLayout;
-    VkPipeline _graphicsPipeline;
-
-    //Image eand texture management
-    VkImage _depthImage;
-    VkDeviceMemory _depthImageMemory;
-    VkImageView _depthImageView;
-
-    VkImage _textureImage;
-    VkDeviceMemory _textureImageMemory;
-    VkImageView _textureImageView;
-    VkSampler _textureSampler;
-
-    //Mallado
-    std::vector < Vertex > _vertices;
-    std::vector < uint32_t > _indices;
-    VkBuffer _vertexBuffer;
-    VkDeviceMemory _vertexBufferMemory;
-    VkBuffer _indexBuffer;
-    VkDeviceMemory _indexBufferMemory;
+    VkPipeline _computePipeline;
 
     //UBOS
     VkBuffer _uniformBuffer;
@@ -134,89 +96,43 @@ class vulkanApp
   public:
     void run ( );
 
-    void initWindow ( );
 
-    void initVulkan ( );
+    void runVulkanCompute ( );
 
-    void mainLoop ( );
 
-    void cleanupSwapChain ( );
 
     void cleanup ( );
 
     //static void onWindowResized ( GLFWwindow* _window, int width, int height );
     static void onWindowResized ( GLFWwindow *window, int width, int height );
 
-    void recreateSwapChain ( );
 
     void createInstance ( );
 
     void setupDebugCallback ( );
 
-    void createSurface ( );
 
     void pickPhysicalDevice ( );
 
     void createLogicalDevice ( );
 
-    void createSwapChain ( );
-
-    void createImageViews ( );
-
-    void createRenderPass ( );
-
     void createDescriptorSetLayout ( );
 
-    void createGraphicsPipeline ( );
+    void createComputePipeline ( );
 
-    void createFramebuffers ( );
 
     void createCommandPool ( );
 
-    void createDepthResources ( );
 
     VkFormat findSupportedFormat ( const std::vector < VkFormat > &candidates,
                                    VkImageTiling tiling,
                                    VkFormatFeatureFlags features );
 
-    VkFormat findDepthFormat ( );
-
-    bool hasStencilComponent ( VkFormat format );
-
-    void createTextureImage ( );
-
-    void createTextureImageView ( );
-
-    void createTextureSampler ( );
-
-    VkImageView createImageView ( VkImage image,
-                                  VkFormat format,
-                                  VkImageAspectFlags aspectFlags );
-
-    void createImage ( uint32_t width,
-                       uint32_t height,
-                       VkFormat format,
-                       VkImageTiling tiling,
-                       VkImageUsageFlags usage,
-                       VkMemoryPropertyFlags properties,
-                       VkImage &image,
-                       VkDeviceMemory &imageMemory );
-
-    void transitionImageLayout ( VkImage image,
-                                 VkFormat format,
-                                 VkImageLayout oldLayout,
-                                 VkImageLayout newLayout );
 
     void copyBufferToImage ( VkBuffer buffer,
                              VkImage image,
                              uint32_t width,
                              uint32_t height );
-
-    void loadModel ( );
-
-    void createVertexBuffer ( );
-
-    void createIndexBuffer ( );
 
     void createUniformBuffer ( );
 
@@ -247,21 +163,7 @@ class vulkanApp
 
     void updateUniformBuffer ( );
 
-    void drawFrame ( );
-
     VkShaderModule createShaderModule ( const std::vector < char > &code );
-
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat ( const std::vector <
-      VkSurfaceFormatKHR > &availableFormats );
-
-    VkPresentModeKHR chooseSwapPresentMode ( const std::vector <
-      VkPresentModeKHR > availablePresentModes );
-
-    VkExtent2D chooseSwapExtent ( const VkSurfaceCapabilitiesKHR &
-    capabilities );
-
-    SwapChainSupportDetails querySwapChainSupport ( VkPhysicalDevice
-                                                    ldevice );
 
     bool isDeviceSuitable ( VkPhysicalDevice ldevice );
 
