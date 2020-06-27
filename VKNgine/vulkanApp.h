@@ -82,7 +82,8 @@ class vulkanApp
 
     //Command buffers
     VkCommandPool _commandPool;
-    std::vector < VkCommandBuffer > _commandBuffers;
+    //std::vector < VkCommandBuffer > _commandBuffers;
+     VkCommandBuffer _commandBuffer;
 
     //Sincronización
     //Imagen adquirida y preparada para renderizarse.

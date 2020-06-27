@@ -609,34 +609,38 @@ uint32_t vulkanApp::findMemoryType ( uint32_t typeFilter,
 //Creación de los command buffers
 void vulkanApp::createCommandBuffers ( )
 {
-  //Tantos command buffers como framebuffers en el swapchain!!!
-  //_commandBuffers.resize ( _swapChainFramebuffers.size ( ));
-
   VkCommandBufferAllocateInfo allocInfo = {};
   allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocInfo.commandPool = _commandPool;
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = ( uint32_t ) _commandBuffers.size ( );
+  allocInfo.commandBufferCount = 1;
 
   if (
     vkAllocateCommandBuffers ( _device,
                                &allocInfo,
-                               _commandBuffers.data ( ))
+                               &_commandBuffer)
       != VK_SUCCESS )
   {
     throw std::runtime_error ( "failed to allocate command buffers!" );
   }
 
-  for ( size_t i = 0; i < _commandBuffers.size ( ); i++ )
+  for ( size_t i = 0; i < 1; i++ )
   {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer ( _commandBuffers[i], &beginInfo );
+    vkBeginCommandBuffer ( _commandBuffer, &beginInfo );
 
+    vkCmdBindPipeline(_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline);
+    // 0:firstSet is the set number of the first descriptor set to be bound.
+    // 1:descriptorSetCount is the number of elements in the pDescriptorSets array.
+    // 0 :dynamicOffsetCount is the number of dynamic offsets in the pDynamicOffsets array.
+    vkCmdBindDescriptorSets(_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0,1,&_descriptorSet,0,nullptr);
 
-    if ( vkEndCommandBuffer ( _commandBuffers[i] ) != VK_SUCCESS )
+   vkCmdDispatch(_commandBuffer, (uint32_t)32, 32, 1);
+
+    if ( vkEndCommandBuffer ( _commandBuffer ) != VK_SUCCESS )
     {
       throw std::runtime_error ( "failed to record command buffer!" );
     }
