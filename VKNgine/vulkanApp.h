@@ -73,8 +73,8 @@ class vulkanApp
     VkPipeline _computePipeline;
 
     //UBOS
-    VkBuffer _uniformBuffer;
-    VkDeviceMemory _uniformBufferMemory;
+    VkBuffer _computeBuffer;
+    VkDeviceMemory _computeBufferMemory;
 
     //Descriptores
     VkDescriptorPool _descriptorPool;
@@ -120,7 +120,7 @@ class vulkanApp
 
     void createCommandPool ( );
 
-    void createBuffer();
+    void AllocateBuffer();
 
 
     VkFormat findSupportedFormat ( const std::vector < VkFormat > &candidates,

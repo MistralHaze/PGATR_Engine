@@ -32,7 +32,7 @@ const std::vector < const char* > deviceExtensions = {
 };
 
 const unsigned int numOfNumbersToOrder = 2097152; //2^21
-const float bufferSize = sizeof(float) * numOfNumbersToOrder;
+const VkDeviceSize bufferSize = sizeof(float) * numOfNumbersToOrder;
 const unsigned int workGroupSize = 32;
 
 void vulkanApp::run ( )
@@ -62,17 +62,23 @@ void vulkanApp::runVulkanCompute ( )
   createComputePipeline ( );
   std::cout << "pipeline created correctly" << std::endl;
 
-  createBuffer();
+  AllocateBuffer();
+  std::cout << "memory correctly allocated" << std::endl;
 
-  //createUniformBuffer ( );
+
   createDescriptorPool ( );
   createDescriptorSet ( );
+    std::cout << "descriptors created correctly" << std::endl;
+
 
   //Commands
   createCommandPool ( );
   createCommandBuffers ( );
+  std::cout << "commands created correctly" << std::endl;
 
   createSemaphores ( );
+  std::cout << "semaphores created correctly" << std::endl;
+
 }
 
 //1)Creación de la instancia de la aplicación
@@ -307,23 +313,22 @@ void vulkanApp::createComputePipeline ( )
   vkDestroyShaderModule ( _device, computeShaderModule, nullptr );
 }
 
-void vulkanApp::createBuffer()
+void vulkanApp::AllocateBuffer()
 {
-    VkDeviceSize vkBufferSize = bufferSize;
 
  /* createBuffer ( bufferSize,
                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                  stagingBuffer,
-                 stagingBufferMemory );*/
+                 stagingBufferMemory );
     VkBuffer computeDataBuffer;
-    VkDeviceMemory computeDataBufferMemory;             
+    VkDeviceMemory computeDataBufferMemory;   */          
 
-    createBuffer(vkBufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
+    createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                   computeDataBuffer, computeDataBufferMemory);
+                   _computeBuffer, _computeBufferMemory);
 
   //FIXME: 
   /*      should I use this? dunno           
@@ -343,8 +348,8 @@ void vulkanApp::cleanup ( )
   vkDestroyDescriptorPool ( _device, _descriptorPool, nullptr );
 
   vkDestroyDescriptorSetLayout ( _device, _descriptorSetLayout, nullptr );
-  vkDestroyBuffer ( _device, _uniformBuffer, nullptr );
-  vkFreeMemory ( _device, _uniformBufferMemory, nullptr );
+  vkDestroyBuffer ( _device, _computeBuffer, nullptr );
+  vkFreeMemory ( _device, _computeBufferMemory, nullptr );
 
   vkDestroyDevice ( _device, nullptr );
   DestroyDebugReportCallbackEXT ( _instance, _callback, nullptr );
@@ -443,7 +448,6 @@ void vulkanApp::createDescriptorPool ( )
   poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   poolSizes[0].descriptorCount = 1;
 
-
   VkDescriptorPoolCreateInfo poolInfo = {};
   poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size ( ));
@@ -476,27 +480,20 @@ void vulkanApp::createDescriptorSet ( )
   }
 
   VkDescriptorBufferInfo bufferInfo = {};
-  bufferInfo.buffer = _uniformBuffer;
+  bufferInfo.buffer = _computeBuffer;
   bufferInfo.offset = 0;
-  bufferInfo.range = sizeof ( UniformBufferObject );
+  bufferInfo.range = /*sizeof ( UniformBufferObject )*/ bufferSize;
 
 
-  std::array < VkWriteDescriptorSet, 2 > descriptorWrites = {};
+  std::array < VkWriteDescriptorSet, 1 > descriptorWrites = {};
 
   descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   descriptorWrites[0].dstSet = _descriptorSet;
   descriptorWrites[0].dstBinding = 0;
   descriptorWrites[0].dstArrayElement = 0;
-  descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   descriptorWrites[0].descriptorCount = 1;
   descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-  descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  descriptorWrites[1].dstSet = _descriptorSet;
-  descriptorWrites[1].dstBinding = 1;
-  descriptorWrites[1].dstArrayElement = 0;
-  descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  descriptorWrites[1].descriptorCount = 1;
 
   vkUpdateDescriptorSets ( _device,
                            static_cast<uint32_t>(descriptorWrites
@@ -689,13 +686,13 @@ void vulkanApp::updateUniformBuffer ( )
 
   void* data;
   vkMapMemory ( _device,
-                _uniformBufferMemory,
+                _computeBufferMemory,
                 0,
                 sizeof ( ubo ),
                 0,
                 &data );
   memcpy ( data, &ubo, sizeof ( ubo ));
-  vkUnmapMemory ( _device, _uniformBufferMemory );
+  vkUnmapMemory ( _device, _computeBufferMemory );
 }
 
 //Generacion de los shader modules a pasarle al pipeline
