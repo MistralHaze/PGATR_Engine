@@ -346,21 +346,24 @@ void vulkanApp::AllocateBuffer()
 void vulkanApp::cleanup ( )
 {
   vkDestroyDescriptorPool ( _device, _descriptorPool, nullptr );
-
   vkDestroyDescriptorSetLayout ( _device, _descriptorSetLayout, nullptr );
+
   vkDestroyBuffer ( _device, _computeBuffer, nullptr );
   vkFreeMemory ( _device, _computeBufferMemory, nullptr );
 
+  vkDestroySemaphore(_device,_computeAvailableSemaphore,nullptr);
+  vkDestroyCommandPool(_device, _commandPool, nullptr);
+
+  vkDestroyPipeline(_device, _computePipeline, nullptr);
+  vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+
   vkDestroyDevice ( _device, nullptr );
   DestroyDebugReportCallbackEXT ( _instance, _callback, nullptr );
-
 
   //Destruir la intancia al final de todo! -> Ultimo objeto de vullkan a
   //destruir
   vkDestroyInstance ( _instance, nullptr );
 
-  //Destroy glfw _window and events
-  glfwDestroyWindow ( _window );
   glfwTerminate ( );
 }
 
@@ -655,11 +658,7 @@ void vulkanApp::createSemaphores ( )
   if ( vkCreateSemaphore ( _device,
                            &semaphoreInfo,
                            nullptr,
-                           &_imageAvailableSemaphore ) != VK_SUCCESS ||
-    vkCreateSemaphore ( _device,
-                        &semaphoreInfo,
-                        nullptr,
-                        &_renderFinishedSemaphore ) != VK_SUCCESS )
+                           &_computeAvailableSemaphore ) != VK_SUCCESS)
   {
 
     throw std::runtime_error ( "failed to create semaphores!" );

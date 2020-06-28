@@ -87,10 +87,8 @@ class vulkanApp
 
     //Sincronización
     //Imagen adquirida y preparada para renderizarse.
-    VkSemaphore _imageAvailableSemaphore;
+    VkSemaphore _computeAvailableSemaphore;
 
-    //Renderizado acabado, ya se puede presentar.
-    VkSemaphore _renderFinishedSemaphore;
 
     bool alreadyCreatedDSL=false;
 
