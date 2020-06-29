@@ -76,6 +76,8 @@ class vulkanApp
     VkBuffer _computeBuffer;
     VkDeviceMemory _computeBufferMemory;
 
+    
+
     //Descriptores
     VkDescriptorPool _descriptorPool;
     VkDescriptorSet _descriptorSet;
@@ -120,6 +122,8 @@ class vulkanApp
     void createCommandPool ( );
 
     void AllocateBuffer();
+
+    void executeCommandBuffers();
 
 
     VkFormat findSupportedFormat ( const std::vector < VkFormat > &candidates,

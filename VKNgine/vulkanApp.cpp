@@ -31,9 +31,22 @@ const std::vector < const char* > deviceExtensions = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+#define VK_CHECK_RESULT(f) 																				\
+{																										\
+    VkResult res = (f);																					\
+    if (res != VK_SUCCESS)																				\
+    {																									\
+        printf("Fatal : VkResult is %d in %s at line %d\n", res,  __FILE__, __LINE__); \
+        assert(res == VK_SUCCESS);																		\
+    }																									\
+}
+
 const unsigned int numOfNumbersToOrder = 2097152; //2^21
 const VkDeviceSize bufferSize = sizeof(float) * numOfNumbersToOrder;
 const unsigned int workGroupSize = 32;
+
+std::vector<uint32_t> computeInput(numOfNumbersToOrder);
+std::vector<uint32_t> computeOutput(numOfNumbersToOrder);
 
 void vulkanApp::run ( )
 {
@@ -78,6 +91,13 @@ void vulkanApp::runVulkanCompute ( )
 
   createSemaphores ( );
   std::cout << "semaphores created correctly" << std::endl;
+
+  executeCommandBuffers();
+
+}
+
+void vulkanApp::executeCommandBuffers()
+{
 
 }
 
@@ -325,20 +345,63 @@ void vulkanApp::AllocateBuffer()
     VkBuffer computeDataBuffer;
     VkDeviceMemory computeDataBufferMemory;   */          
 
-    createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
+    //Visible bit hace que se pueda usar el VKmapMemory
+    //Host coherent bit hace que no haga falta hacer flushes
+    //usage storage bit indica que este buffer se puede usar en un VKdescriptorbuffer info como storage
+    //VK_BUFFER_USAGE_TRANSFER_SRC_BIT permite usar el comando transfer (en  VK_PIPELINE_STAGE_TRANSFER_BIT)
+
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+
+  createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                   _computeBuffer, _computeBufferMemory);
+                   _computeBuffer,_computeBufferMemory );
 
-  //FIXME: 
-  /*      should I use this? dunno           
-  void* data;
-  vkMapMemory ( _device, computeDataBufferMemory, 0, vkBufferSize, 0, &data );
+ 	uint32_t n = 0;
+	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
 
-  //memcpy ( data, _indices.data ( ), ( size_t ) vkBufferSize );
+  for(unsigned int i=0; i</*computeInput.size()*/15; i++)
+  {
+    std::cout << computeInput[i] << " " ;
+  }
+  std::cout << std::endl ;
 
-  vkUnmapMemory ( _device, computeDataBufferMemory );
-  */
+  // Se copian los datos
+	if (computeInput.data() != nullptr) 
+  {
+		void *mapped;
+		VK_CHECK_RESULT(vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mapped));
+		memcpy(mapped, computeInput.data(), bufferSize);
+		vkUnmapMemory(_device, _computeBufferMemory);
+	}
+/*
+  createBuffer(bufferSize,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		_computeBuffer,
+		_computeBufferMemory);
+
+  copyBuffer ( stagingBuffer, _computeBuffer, bufferSize );
+  vkDestroyBuffer ( _device, stagingBuffer, nullptr );
+  vkFreeMemory ( _device, stagingBufferMemory, nullptr );
+
+
+    void* mappedMemory = NULL;
+
+    vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemory);
+    float* mappedValues= (float*) mappedMemory;
+
+    for(unsigned int i=0; i < numOfNumbersToOrder; i++)
+    {
+      computeOutput.push_back((float) mappedValues[i]);
+    }
+
+    for(unsigned int i=0; i<computeInput.size()15; i++)
+    {
+      std::cout << computeOutput[i] << " " ;
+    }
+    std::cout << std::endl ;*/
 
 }
 
