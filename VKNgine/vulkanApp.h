@@ -150,7 +150,7 @@ class vulkanApp
 
     VkCommandBuffer beginSingleTimeCommands ( );
 
-    void endSingleTimeCommands ( VkCommandBuffer commandBuffer );
+    void endSingleTimeCommands ( VkCommandBuffer commandBuffer, VkFence fence );
 
     void copyBuffer ( VkBuffer srcBuffer,
                       VkBuffer dstBuffer,

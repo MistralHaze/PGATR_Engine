@@ -41,12 +41,12 @@ const std::vector < const char* > deviceExtensions = {
     }																									\
 }
 
-const unsigned int numOfNumbersToOrder = 2097152; //2^21
+const unsigned int numOfNumbersToOrder = 64;/*2097152; //2^21*/
 const VkDeviceSize bufferSize = sizeof(float) * numOfNumbersToOrder;
 const unsigned int workGroupSize = 32;
 
 std::vector<uint32_t> computeInput(numOfNumbersToOrder);
-std::vector<uint32_t> computeOutput(numOfNumbersToOrder);
+std::vector<uint32_t> computeOutput;
 
 void vulkanApp::run ( )
 {
@@ -89,16 +89,60 @@ void vulkanApp::runVulkanCompute ( )
   createCommandBuffers ( );
   std::cout << "commands created correctly" << std::endl;
 
-  createSemaphores ( );
-  std::cout << "semaphores created correctly" << std::endl;
-
   executeCommandBuffers();
+    std::cout << "finished program" << std::endl;
+
+
 
 }
 
 void vulkanApp::executeCommandBuffers()
 {
+  VkFence fence;
+  VkFenceCreateInfo fenceCreateInfo = {};
+  fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fenceCreateInfo.flags = 0;
+  VK_CHECK_RESULT(vkCreateFence(_device, &fenceCreateInfo, NULL, &fence));
+      
+  endSingleTimeCommands(_commandBuffer, fence);
 
+  VK_CHECK_RESULT(vkWaitForFences(_device, 1, &fence, VK_TRUE, 10000000));
+
+  vkDestroyFence(_device, fence, NULL);
+
+  ////////////////////////////////////////
+  //Mete los datos a computeOutput
+
+  void* mappedMemoryDevice = NULL;
+  // Map the buffer memory, so that we can read from it on the CPU.
+  vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemoryDevice);
+  
+  float* pointerMappedMemory = (float *)mappedMemoryDevice;
+
+  computeOutput.reserve(numOfNumbersToOrder);
+
+  for (unsigned int i = 0; i < numOfNumbersToOrder; i += 1) 
+  {
+    computeOutput.push_back((float)(pointerMappedMemory[i]));
+  }
+
+  ////////////////////////////////////////////////
+
+  std::cout << "Entrada "<< computeInput.size()<< std::endl;
+  for(unsigned int i=0; i<computeInput.size(); i++)
+  {
+    std::cout <<computeInput[i] << " " ;
+  }
+  std::cout<<std::endl;
+
+  std::cout << "Salida "<< computeOutput.size()<< std::endl;
+  for(unsigned int i=0; i<computeOutput.size(); i++)
+  {
+    std::cout  <<computeOutput[i] << " " ;
+  }
+  std::cout << std::endl ;
+
+  vkUnmapMemory(_device, _computeBufferMemory);
 }
 
 //1)Creación de la instancia de la aplicación
@@ -279,7 +323,7 @@ void vulkanApp::createDescriptorSetLayout ( )
 void vulkanApp::createComputePipeline ( )
 {
   //Ya están los shaders compilados
-  std::vector < char > computeShaderCode = readFile ( "./content/vk_shaders/compute/sortingShader.spv" );
+  std::vector < char > computeShaderCode = readFile ( "./content/vk_shaders/compute/passThrough.spv" );
 
   VkShaderModule computeShaderModule = createShaderModule ( computeShaderCode );
 
@@ -350,8 +394,8 @@ void vulkanApp::AllocateBuffer()
     //usage storage bit indica que este buffer se puede usar en un VKdescriptorbuffer info como storage
     //VK_BUFFER_USAGE_TRANSFER_SRC_BIT permite usar el comando transfer (en  VK_PIPELINE_STAGE_TRANSFER_BIT)
 
-  VkBuffer stagingBuffer;
-  VkDeviceMemory stagingBufferMemory;
+  /*VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;*/
 
   createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
@@ -361,7 +405,7 @@ void vulkanApp::AllocateBuffer()
  	uint32_t n = 0;
 	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
 
-  for(unsigned int i=0; i</*computeInput.size()*/15; i++)
+  for(unsigned int i=0; i<numOfNumbersToOrder; i++)
   {
     std::cout << computeInput[i] << " " ;
   }
@@ -375,6 +419,32 @@ void vulkanApp::AllocateBuffer()
 		memcpy(mapped, computeInput.data(), bufferSize);
 		vkUnmapMemory(_device, _computeBufferMemory);
 	}
+
+
+
+
+
+
+
+/*
+  void* mappedMemoryDevice = NULL;
+  // Map the buffer memory, so that we can read from it on the CPU.
+  vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemoryDevice);
+  float* pointerMappedMemory = (float *)mappedMemoryDevice;
+  //computeOutput.reserve(numOfNumbersToOrder);
+  for (unsigned int i = 0; i < numOfNumbersToOrder; i += 1) 
+  {
+    computeOutput.push_back((float)(pointerMappedMemory[i]));
+  }
+
+    for(unsigned int i=0; i<15; i++)
+    {
+      std::cout << computeOutput[i] << " " ;
+    }
+    std::cout << std::endl ;
+
+        // Done reading, so unmap.
+        vkUnmapMemory(_device, _computeBufferMemory);*/
 /*
   createBuffer(bufferSize,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -414,7 +484,7 @@ void vulkanApp::cleanup ( )
   vkDestroyBuffer ( _device, _computeBuffer, nullptr );
   vkFreeMemory ( _device, _computeBufferMemory, nullptr );
 
-  vkDestroySemaphore(_device,_computeAvailableSemaphore,nullptr);
+  //vkDestroySemaphore(_device,_computeAvailableSemaphore,nullptr);
   vkDestroyCommandPool(_device, _commandPool, nullptr);
 
   vkDestroyPipeline(_device, _computePipeline, nullptr);
@@ -502,7 +572,7 @@ void vulkanApp::copyBufferToImage ( VkBuffer buffer,
                            1,
                            &region );
 
-  endSingleTimeCommands ( commandBuffer );
+  //endSingleTimeCommands ( commandBuffer );
 }
 
 
@@ -625,16 +695,16 @@ VkCommandBuffer vulkanApp::beginSingleTimeCommands ( )
   return commandBuffer;
 }
 
-void vulkanApp::endSingleTimeCommands ( VkCommandBuffer commandBuffer )
+void vulkanApp::endSingleTimeCommands ( VkCommandBuffer commandBuffer, VkFence fence )
 {
-  vkEndCommandBuffer ( commandBuffer );
+  //vkEndCommandBuffer ( commandBuffer );
 
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &commandBuffer;
 
-  vkQueueSubmit ( _computeQueue, 1, &submitInfo, VK_NULL_HANDLE );
+  vkQueueSubmit ( _computeQueue, 1, &submitInfo,  fence );
   vkQueueWaitIdle ( _computeQueue );
 
   vkFreeCommandBuffers ( _device, _commandPool, 1, &commandBuffer );
@@ -650,7 +720,7 @@ void vulkanApp::copyBuffer ( VkBuffer srcBuffer,
   copyRegion.size = size;
   vkCmdCopyBuffer ( commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion );
 
-  endSingleTimeCommands ( commandBuffer );
+  //endSingleTimeCommands ( commandBuffer );
 }
 
 uint32_t vulkanApp::findMemoryType ( uint32_t typeFilter,
