@@ -5,20 +5,15 @@
 layout( std140, binding = 0 ) buffer Pos {
    vec4 Positions[ ];
 };
-/*
-layout( std140, binding = 1 ) buffer Vel {
-   vec4 Velocities[ ];
-};
 
-layout( std140, binding = 2 ) buffer Col {
-   vec4 Colors[ ];
-};*/
+layout(binding = 1) uniform UniformBufferObject {
+    int stage;
+    int subStage;
+} ubo;
+
 
 layout (local_size_x = SIZE_X, local_size_y = SIZE_Y) in;
 
-/*uniform*/ int stage=1;
-/*uniform*/ int subStage=1;
-/*uniform mat4 modelView;*/
 
 //Algoritmo adaptado de OpenCL Parallel Programming Development Cookbook de Raymond Tay
 
@@ -33,20 +28,20 @@ void main()
 	// Determine where to conduct the bitonic split
 	// by locating the middle-point of this 1D array
 	// Recuerda 1 << a = 2^a
-	uint distanceBetweenPairs = 1 << (stage - subStage);
+	uint distanceBetweenPairs = 1 << (ubo.stage - ubo.subStage);
 	uint blockWidth = 2 * distanceBetweenPairs;
 
 	// Determine the left and right indexes to the data
 	uint leftIndex = (threadId % distanceBetweenPairs) + (threadId / distanceBetweenPairs) * blockWidth;
 	uint rightIndex = leftIndex + distanceBetweenPairs;
 
-	float leftElement =  (/*modelView **/ Positions[leftIndex]).z;
-	float rightElement = (/*modelView **/ Positions[rightIndex]).z;
+	float leftElement =  ( Positions[leftIndex]).z;
+	float rightElement = ( Positions[rightIndex]).z;
 
 	 // Threads are divided into blocks of size 2^sameDirectionBlockWidth
 	 // and its used to build bitonic subsequences s.t the sorting is
 	 // monotically increasing on the left and decreasing on the right
-	 uint sameDirectionBlockWidth = 1 << stage;
+	 uint sameDirectionBlockWidth = 1 << ubo.stage;
 
 	 //Cambia la direccion
 	 if((threadId/sameDirectionBlockWidth) % 2 == 1)
@@ -67,44 +62,27 @@ void main()
 	 if(leftElement > rightElement) 
 	 {
 		 greaterPos = Positions[leftIndex];
-		/* greaterVel = Velocities[leftIndex];
-		 greaterCol = Colors[leftIndex];*/
 
 		 lesserPos = Positions[rightIndex];
-		 /*lesserVel = Velocities[rightIndex];
-		 lesserCol = Colors[rightIndex];*/
 	 }
 	 else
 	 {
 		 greaterPos = Positions[rightIndex];
-		/* greaterVel = Velocities[rightIndex];
-		 greaterCol = Colors[rightIndex];*/
 
 		 lesserPos = Positions[leftIndex];
-		 /*lesserVel = Velocities[leftIndex];
-		 lesserCol = Colors[leftIndex];*/
 	 }
 
 	 if(sortIncreasing)
 	 {
 		 Positions[leftIndex] = lesserPos;
-		 /*Velocities[leftIndex] = lesserVel;
-		 Colors[leftIndex] = lesserCol;*/
 
-		 Positions[rightIndex] = greaterPos;
-		/* Velocities[rightIndex] = greaterVel;
-		 Colors[rightIndex] = greaterCol;*/
-		 
+		 Positions[rightIndex] = greaterPos;	 
 	 } 
 	 else 
 	 {
 		 Positions[leftIndex] = greaterPos;
-		 /*Velocities[leftIndex] = greaterVel;
-		 Colors[leftIndex] = greaterCol;*/
 
 		 Positions[rightIndex] = lesserPos;
-		 /*Velocities[rightIndex] = lesserVel;
-		 Colors[rightIndex] = lesserCol;*/
 	 }
 
 }

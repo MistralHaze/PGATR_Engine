@@ -1,27 +1,28 @@
 #version 430
-#define SIZE_X 32
+#define SIZE_X 1024
 #define SIZE_Y 1
 
 layout( std140, binding = 0 ) buffer Pos {
-   float Positions[ ];
+   vec4 Positions[ ];
 };
+/*
+layout(std140, binding = 1) buffer UniformBufferObject {
+    int stage;
+    int substage;
+} ubo;*/
 
 layout (local_size_x = SIZE_X, local_size_y = SIZE_Y) in;
 
-/*uniform*/ int stage=1;
-/*uniform*/ int subStage=1;
-/*uniform mat4 modelView;*/
-
-//Algoritmo adaptado de OpenCL Parallel Programming Development Cookbook de Raymond Tay
-
 //Indice de la particula a integrar
+//uint gid = gl_LocalInvocationID.x;
 uint gid = gl_GlobalInvocationID.x;
 
 void main()
 {
 
 	uint threadId = gid;
-
-	Positions[gid] +=1; 
-
+	
+	//Atomic add does not exist in vulkan
+	
+	Positions[threadId].x =  Positions[threadId].x -1;
 }

@@ -46,12 +46,16 @@ const std::vector < const char* > deviceExtensions = {
     }																									\
 }
 
-const unsigned int numOfNumbersToOrder = 64;/*2097152; //2^21*/
-const VkDeviceSize bufferSize = sizeof(float) * numOfNumbersToOrder;
+const  float numOfNumbersToOrder = 1024;/*2097152; //2^21*/
+// use this or alignas(4)
+const VkDeviceSize bufferSize =  sizeof(glm::vec4) * numOfNumbersToOrder;
 const unsigned int workGroupSize = 32;
 
-std::vector<uint32_t> computeInput(numOfNumbersToOrder);
-std::vector<uint32_t> computeOutput(numOfNumbersToOrder);
+//std::vector<float> computeInput(numOfNumbersToOrder);
+//std::vector<float> computeOutput(numOfNumbersToOrder);
+
+std::vector<glm::vec4> computeInput(numOfNumbersToOrder);
+std::vector<glm::vec4> computeOutput(numOfNumbersToOrder);
 
 void vulkanApp::run ( )
 {
@@ -118,7 +122,6 @@ void vulkanApp::runVulkanCompute ( )
   AllocateBuffer();
   std::cout << "memory correctly allocated" << std::endl;
 
-
   createDescriptorPool ( );
   createDescriptorSet ( );
     std::cout << "descriptors created correctly" << std::endl;
@@ -153,7 +156,8 @@ void vulkanApp::readOutput()
   void *mapped;
   vkMapMemory(_device, _computeBufferMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
   VkMappedMemoryRange mappedRange {};
-  mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;			mappedRange.memory = _computeBufferMemory;
+  mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;		
+  mappedRange.memory = _computeBufferMemory;
   mappedRange.offset = 0;
   mappedRange.size = VK_WHOLE_SIZE;
   vkInvalidateMappedMemoryRanges(_device, 1, &mappedRange);
@@ -162,19 +166,17 @@ void vulkanApp::readOutput()
   memcpy(computeOutput.data(), mapped, bufferSize);
   vkUnmapMemory(_device, _computeBufferMemory);
 
-  ////////////////////////////////////////////////
-
   std::cout << "Entrada "<< computeInput.size()<< std::endl;
   for(unsigned int i=0; i<computeInput.size(); i++)
   {
-    std::cout <<computeInput[i] << " " ;
+    std::cout <<computeInput[i].x << " " ;
   }
   std::cout<<std::endl;
 
   std::cout << "Salida "<< computeOutput.size()<< std::endl;
   for(unsigned int i=0; i<computeOutput.size(); i++)
   {
-    std::cout  <<computeOutput[i] << " " ;
+    std::cout  <<computeOutput[i].x << " " ;
   }
   std::cout << std::endl ;
 
@@ -332,12 +334,19 @@ void vulkanApp::createDescriptorSetLayout ( )
   VkDescriptorSetLayoutBinding uboLayoutBinding = {};
   uboLayoutBinding.binding = 0;
   uboLayoutBinding.descriptorCount = 1;
-  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   uboLayoutBinding.pImmutableSamplers = nullptr;
   uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+/*
+  VkDescriptorSetLayoutBinding uniformLayoutBinding = {};
+  uniformLayoutBinding.binding = 1;
+  uniformLayoutBinding.descriptorCount = 1;
+  uniformLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  uniformLayoutBinding.pImmutableSamplers = nullptr;
+  uniformLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;*/
 
 
-  std::array < VkDescriptorSetLayoutBinding, 1 > bindings = { uboLayoutBinding};
+  std::array < VkDescriptorSetLayoutBinding, 1 > bindings = { uboLayoutBinding/*, uniformLayoutBinding*/};
 
   VkDescriptorSetLayoutCreateInfo layoutInfo = {};
   layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -418,8 +427,14 @@ void vulkanApp::AllocateBuffer()
 //staging buffer
 ////////////////////////
 
- 	uint32_t n = 0;
-	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
+ 	//uint32_t n = 0;
+	//std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
+  for(int i=0; i<numOfNumbersToOrder; i++)
+  {
+    computeInput[i].x =rand()/10000000;
+    computeInput[i].y = computeInput[i].z =0;
+
+  }
 
  createBuffer ( bufferSize,
                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -442,8 +457,7 @@ void vulkanApp::AllocateBuffer()
   vkUnmapMemory(_device, _stagingBufferMemory);
 
    
-
-  createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|           VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,  
+  createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,  
                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                    _computeBuffer,_computeBufferMemory );
 
@@ -461,7 +475,7 @@ void vulkanApp::AllocateBuffer()
 
   for(unsigned int i=0; i<numOfNumbersToOrder; i++)
   {
-    std::cout << computeInput[i] << " " ;
+    std::cout << computeInput[i].x << " " ;
   }
   std::cout << std::endl ;
 
@@ -519,10 +533,11 @@ void vulkanApp::createCommandPool ( )
 
 void vulkanApp::createDescriptorPool ( )
 {
-  std::array < VkDescriptorPoolSize, 1 > poolSizes = {};
-  //De momento solo guardamos guardamos descriptores de Storage
+  std::array < VkDescriptorPoolSize, 1> poolSizes = {};
   poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   poolSizes[0].descriptorCount = 1;
+  /*poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  poolSizes[1].descriptorCount = 1;*/
 
   VkDescriptorPoolCreateInfo poolInfo = {};
   poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -559,8 +574,7 @@ void vulkanApp::createDescriptorSet ( )
   bufferInfo.buffer = _computeBuffer;
   bufferInfo.offset = 0;
   bufferInfo.range = bufferSize;
-/*
-  VkDescriptorBufferInfo uniformInfo = {};
+/*VkDescriptorBufferInfo uniformInfo = {};
   bufferInfo.buffer = _uniformBuffer;
   bufferInfo.offset = 0;
   bufferInfo.range = sizeof ( UniformBufferObject );*/
@@ -738,7 +752,7 @@ void vulkanApp::manageCommandBuffers ( )
     // 0 :dynamicOffsetCount is the number of dynamic offsets in the pDynamicOffsets array.
     vkCmdBindDescriptorSets(_commandBufferCompute, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0,1,&_descriptorSet,0,nullptr);
 
-   vkCmdDispatch(_commandBufferCompute, (uint32_t)32, 32, 1);
+   vkCmdDispatch(_commandBufferCompute, (uint32_t)1024, 1, 1);
 
     if ( vkEndCommandBuffer ( _commandBufferCompute ) != VK_SUCCESS )
     {
