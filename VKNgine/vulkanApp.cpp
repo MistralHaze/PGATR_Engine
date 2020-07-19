@@ -123,49 +123,31 @@ void vulkanApp::runVulkanCompute ( )
   createDescriptorSet ( );
     std::cout << "descriptors created correctly" << std::endl;
 
+  createFences();
 
   //Commands
   createCommandPool ( );
-  createCommandBuffers ( );
-  std::cout << "commands created correctly" << std::endl;
+  manageCommandBuffers ( );
+  std::cout << "commands executed correctly" << std::endl;
 
-  executeCommandBuffers();
+  readOutput();
     std::cout << "finished program" << std::endl;
 
 }
 
-void vulkanApp::executeCommandBuffers()
+void vulkanApp::createFences()
 {
-  VkFence fence;
+  
   VkFenceCreateInfo fenceCreateInfo = {};
   fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fenceCreateInfo.flags = 0;
-  VK_CHECK_RESULT(vkCreateFence(_device, &fenceCreateInfo, NULL, &fence));
-      
-  endSingleTimeCommands(_commandBuffer, fence);
+  VK_CHECK_RESULT(vkCreateFence(_device, &fenceCreateInfo, NULL, &_fence));
+}
 
-  VK_CHECK_RESULT(vkWaitForFences(_device, 1, &fence, VK_TRUE, 10000000));
+void vulkanApp::readOutput()
+{
 
-  vkDestroyFence(_device, fence, NULL);
-
-  ////////////////////////////////////////
-  //Mete los datos a computeOutput
-
-  /*void* mappedMemoryDevice = NULL;
-  // Map the buffer memory, so that we can read from it on the CPU.
-  vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemoryDevice);
-  
-  float* pointerMappedMemory = (float *)mappedMemoryDevice;
-
-  //computeOutput.reserve(numOfNumbersToOrder);
-
-  for (unsigned int i = 0; i < numOfNumbersToOrder; i += 1) 
-  {
-    computeOutput.push_back((float)(pointerMappedMemory[i]));
-  }
-  
-  vkUnmapMemory(_device, _computeBufferMemory);*/
-  
+  vkDestroyFence(_device, _fence, NULL);
 
   // Make device writes visible to the host
   void *mapped;
@@ -350,11 +332,10 @@ void vulkanApp::createDescriptorSetLayout ( )
   VkDescriptorSetLayoutBinding uboLayoutBinding = {};
   uboLayoutBinding.binding = 0;
   uboLayoutBinding.descriptorCount = 1;
-  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; //VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+  uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   uboLayoutBinding.pImmutableSamplers = nullptr;
   uboLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-  //TODO: Uniforms go here.
 
   std::array < VkDescriptorSetLayoutBinding, 1 > bindings = { uboLayoutBinding};
 
@@ -433,23 +414,12 @@ void vulkanApp::createComputePipeline ( )
 
 void vulkanApp::AllocateBuffer()
 {
-    
-
-    //Visible bit hace que se pueda usar el VKmapMemory
-    //Host coherent bit hace que no haga falta hacer flushes
-    //usage storage bit indica que este buffer se puede usar en un VKdescriptorbuffer info como storage
-    //VK_BUFFER_USAGE_TRANSFER_SRC_BIT permite usar el comando transfer (en  VK_PIPELINE_STAGE_TRANSFER_BIT)
-
-
 ////////////////////
-//Con staging buffer, me da errores y no tengo muy claro porque ni si lo estoy haciendo bien
+//staging buffer
 ////////////////////////
 
  	uint32_t n = 0;
 	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
-
- //hostbuffer --> staging buffer
- //deviceBuffer --> computeBuffer
 
  createBuffer ( bufferSize,
                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -478,37 +448,16 @@ void vulkanApp::AllocateBuffer()
                    _computeBuffer,_computeBufferMemory );
 
 
-  /*copyBuffer ( _stagingBuffer, _computeBuffer, bufferSize );
-
-
-    //Se destruye el temporal usado para la CPU transfer
-  vkDestroyBuffer ( _device, _stagingBuffer, nullptr );
-  vkFreeMemory ( _device, _stagingBufferMemory, nullptr );*/
-
-  for(unsigned int i=0; i<numOfNumbersToOrder; i++)
-  {
-    std::cout << computeInput[i] << " " ;
-  }
-  std::cout << std::endl ;
-
-
-
-  /////////////////////////
-  //Sin staging buffer. 
-  //Luego el programa me devuelve 0s pero no se si estoy 
-  //haciendo algo bien ya que no me devuelve valores aleatorios que lee de la memoria 
-  //porque devuelve 0s.
-  ///////////////////////////////////////////
-
-/*
-  //interesting read on bit types: https://stackoverflow.com/questions/56594684/transferring-memory-from-gpu-to-cpu-with-vulkan-and-vkinvalidatemappedmemoryrang
-  createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+////////////////////
+//Uniforms
+////////////////////////
+  VkDeviceSize uniformBufferSize = sizeof ( UniformBufferObject );
+  createBuffer ( uniformBufferSize,
+                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                   _computeBuffer,_computeBufferMemory );
-
- 	uint32_t n = 0;
-	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
+                 _uniformBuffer,
+                 _uniformBufferMemory );
 
   for(unsigned int i=0; i<numOfNumbersToOrder; i++)
   {
@@ -516,14 +465,6 @@ void vulkanApp::AllocateBuffer()
   }
   std::cout << std::endl ;
 
-  // Se copian los datos
-	if (computeInput.data() != nullptr) 
-  {
-		void *mapped;
-		VK_CHECK_RESULT(vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mapped));
-		memcpy(mapped, computeInput.data(), bufferSize);
-		vkUnmapMemory(_device, _computeBufferMemory);
-	}*/
 
 }
 
@@ -538,6 +479,9 @@ void vulkanApp::cleanup ( )
 
   vkDestroyBuffer ( _device, _stagingBuffer, nullptr );
   vkFreeMemory ( _device, _stagingBufferMemory, nullptr );
+
+  vkDestroyBuffer ( _device, _uniformBuffer, nullptr );
+  vkFreeMemory ( _device, _uniformBufferMemory, nullptr );
 
   vkDestroyCommandPool(_device, _commandPool, nullptr);
 
@@ -614,7 +558,12 @@ void vulkanApp::createDescriptorSet ( )
   VkDescriptorBufferInfo bufferInfo = {};
   bufferInfo.buffer = _computeBuffer;
   bufferInfo.offset = 0;
-  bufferInfo.range = /*sizeof ( UniformBufferObject )*/ bufferSize;
+  bufferInfo.range = bufferSize;
+/*
+  VkDescriptorBufferInfo uniformInfo = {};
+  bufferInfo.buffer = _uniformBuffer;
+  bufferInfo.offset = 0;
+  bufferInfo.range = sizeof ( UniformBufferObject );*/
 
 
   std::array < VkWriteDescriptorSet, 1 > descriptorWrites = {};
@@ -626,6 +575,16 @@ void vulkanApp::createDescriptorSet ( )
   descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   descriptorWrites[0].descriptorCount = 1;
   descriptorWrites[0].pBufferInfo = &bufferInfo;
+/*
+  descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  descriptorWrites[1].dstSet = _descriptorSet;
+  descriptorWrites[1].dstBinding = 1;
+  descriptorWrites[1].dstArrayElement = 0;
+  descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  descriptorWrites[1].descriptorCount = 1;
+  descriptorWrites[1].pBufferInfo = &uniformInfo;*/
+
+
 
   vkUpdateDescriptorSets ( _device,
                            static_cast<uint32_t>(descriptorWrites
@@ -682,8 +641,12 @@ void vulkanApp::endSingleTimeCommands ( VkCommandBuffer commandBuffer, VkFence f
 
   vkQueueSubmit ( _computeQueue, 1, &submitInfo,  fence );
   vkQueueWaitIdle ( _computeQueue );
+  VK_CHECK_RESULT(vkWaitForFences(_device, 1, &_fence, VK_TRUE, 10000000));
+
 
   vkFreeCommandBuffers ( _device, _commandPool, 1, &commandBuffer );
+
+  vkResetFences(_device, 1, &_fence);
 }
 
 
@@ -707,49 +670,84 @@ uint32_t vulkanApp::findMemoryType ( uint32_t typeFilter,
 }
 
 //Creación de los command buffers
-void vulkanApp::createCommandBuffers ( )
+void vulkanApp::manageCommandBuffers ( )
 {
-  VkCommandBufferAllocateInfo allocInfo = {};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = _commandPool;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = 1;
+  VkCommandBufferAllocateInfo allocInfoCopy = {};
+  allocInfoCopy.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfoCopy.commandPool = _commandPool;
+  allocInfoCopy.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfoCopy.commandBufferCount = 1;
+
+  VkCommandBufferAllocateInfo allocInfoCompute = {};
+  allocInfoCompute.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfoCompute.commandPool = _commandPool;
+  allocInfoCompute.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfoCompute.commandBufferCount = 1;
+
 
   if (vkAllocateCommandBuffers ( _device,
-                               &allocInfo,
-                               &_commandBuffer) //_commandBuffer
+                               &allocInfoCompute,
+                               &_commandBufferCompute) //_commandBuffer
       != VK_SUCCESS )
   {
     throw std::runtime_error ( "failed to allocate command buffers!" );
   }
 
-  for ( size_t i = 0; i < 1; i++ )
+    if (vkAllocateCommandBuffers ( _device,
+                               &allocInfoCopy,
+                               &_commandBufferCopy) //_commandBuffer
+      != VK_SUCCESS )
   {
+    throw std::runtime_error ( "failed to allocate command buffers!" );
+  }
+
+
+
+  ///////Copy
+
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer ( _commandBuffer, &beginInfo );
+    vkBeginCommandBuffer ( _commandBufferCopy, &beginInfo );
+
 
     //copy to staging buffer
     VkBufferCopy copyRegion = {};
     copyRegion.size = bufferSize;
-    vkCmdCopyBuffer(_commandBuffer, _stagingBuffer, _computeBuffer, 1, &copyRegion);
-    VK_CHECK_RESULT(vkEndCommandBuffer(_commandBuffer));
-
-    vkCmdBindPipeline(_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline);
-    // 0:firstSet is the set number of the first descriptor set to be bound.
-    // 1:descriptorSetCount is the number of elements in the pDescriptorSets array.
-    // 0 :dynamicOffsetCount is the number of dynamic offsets in the pDynamicOffsets array.
-    vkCmdBindDescriptorSets(_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0,1,&_descriptorSet,0,nullptr);
-
-   vkCmdDispatch(_commandBuffer, (uint32_t)32, 32, 1);
-
-    if ( vkEndCommandBuffer ( _commandBuffer ) != VK_SUCCESS )
+    vkCmdCopyBuffer(_commandBufferCopy, _stagingBuffer, _computeBuffer, 1, &copyRegion);
+    if ( vkEndCommandBuffer ( _commandBufferCopy ) != VK_SUCCESS )
     {
       throw std::runtime_error ( "failed to record command buffer!" );
     }
-  }
+  
+    endSingleTimeCommands(_commandBufferCopy, _fence);
+
+  //////Compute
+
+    /*VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;*/
+
+    vkBeginCommandBuffer ( _commandBufferCompute, &beginInfo );
+
+
+    vkCmdBindPipeline(_commandBufferCompute, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline);
+    // 0:firstSet is the set number of the first descriptor set to be bound.
+    // 1:descriptorSetCount is the number of elements in the pDescriptorSets array.
+    // 0 :dynamicOffsetCount is the number of dynamic offsets in the pDynamicOffsets array.
+    vkCmdBindDescriptorSets(_commandBufferCompute, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0,1,&_descriptorSet,0,nullptr);
+
+   vkCmdDispatch(_commandBufferCompute, (uint32_t)32, 32, 1);
+
+    if ( vkEndCommandBuffer ( _commandBufferCompute ) != VK_SUCCESS )
+    {
+      throw std::runtime_error ( "failed to record command buffer!" );
+    }
+
+    endSingleTimeCommands(_commandBufferCompute, _fence);
+
+  
 }
 
 void vulkanApp::createSemaphores ( )

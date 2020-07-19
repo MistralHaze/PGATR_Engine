@@ -106,7 +106,6 @@ namespace std
 
 struct UniformBufferObject
 {
-  glm::mat4 _model;
-  glm::mat4 _view;
-  glm::mat4 _proj;
+  int stage;
+  int substage;
 };

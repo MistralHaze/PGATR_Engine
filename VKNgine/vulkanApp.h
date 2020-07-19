@@ -76,9 +76,11 @@ class vulkanApp
     VkBuffer _computeBuffer;
     VkDeviceMemory _computeBufferMemory;
 
-
     VkBuffer _stagingBuffer;
     VkDeviceMemory _stagingBufferMemory;
+
+    VkBuffer _uniformBuffer;
+    VkDeviceMemory _uniformBufferMemory;
 
   
     //Descriptores
@@ -88,11 +90,14 @@ class vulkanApp
     //Command buffers
     VkCommandPool _commandPool;
     //std::vector < VkCommandBuffer > _commandBuffers;
-     VkCommandBuffer _commandBuffer;
+    VkCommandBuffer _commandBufferCompute;
+    VkCommandBuffer _commandBufferCopy;
+
 
     //Sincronización
     //Imagen adquirida y preparada para renderizarse.
     VkSemaphore _computeAvailableSemaphore;
+    VkFence _fence;
 
 
     bool alreadyCreatedDSL=false;
@@ -124,7 +129,7 @@ class vulkanApp
 
     void AllocateBuffer();
 
-    void executeCommandBuffers();
+    void readOutput();
 
 
     VkFormat findSupportedFormat ( const std::vector < VkFormat > &candidates,
@@ -160,9 +165,11 @@ class vulkanApp
     uint32_t findMemoryType ( uint32_t typeFilter,
                               VkMemoryPropertyFlags properties );
 
-    void createCommandBuffers ( );
+    void manageCommandBuffers ( );
 
     void createSemaphores ( );
+
+    void createFences();
 
     void updateUniformBuffer ( );
 
