@@ -76,8 +76,11 @@ class vulkanApp
     VkBuffer _computeBuffer;
     VkDeviceMemory _computeBufferMemory;
 
-    
 
+    VkBuffer _stagingBuffer;
+    VkDeviceMemory _stagingBufferMemory;
+
+  
     //Descriptores
     VkDescriptorPool _descriptorPool;
     VkDescriptorSet _descriptorSet;
@@ -109,7 +112,6 @@ class vulkanApp
 
     void setupDebugCallback ( );
 
-
     void pickPhysicalDevice ( );
 
     void createLogicalDevice ( );
@@ -117,7 +119,6 @@ class vulkanApp
     void createDescriptorSetLayout ( );
 
     void createComputePipeline ( );
-
 
     void createCommandPool ( );
 
@@ -187,6 +188,12 @@ class vulkanApp
                                const char *layerPrefix,
                                const char *msg,
                                void *userData );
+
+    void setupRenderdoc();
+
+    void startRenderdocRecording();
+
+    void endRenderdocRecording();
 };
 
 #endif //VULKANAPP_H

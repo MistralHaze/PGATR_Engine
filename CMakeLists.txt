@@ -61,6 +61,7 @@ endif()
 
 common_find_package_post( )
 
+
 # imgui lib
 set(IMGUI_DIR libs/imgui)
 set (   IMGUI_HEADERS
@@ -75,6 +76,7 @@ set (   IMGUI_HEADERS
         ${IMGUI_DIR}/examples/imgui_impl_glut.h
         ${IMGUI_DIR}/examples/imgui_impl_glfw.h
         ${IMGUI_DIR}/examples/imgui_impl_vulkan.h
+        ${IMGUI_DIR}/librenderdoc.so
         )
 
 set (   IMGUI_SRC
@@ -87,7 +89,7 @@ set (   IMGUI_SRC
         ${IMGUI_DIR}/examples/imgui_impl_glut.cpp
         ${IMGUI_DIR}/examples/imgui_impl_glfw.cpp
         ${IMGUI_DIR}/examples/imgui_impl_vulkan.cpp
-        VKNgine/vulkanApp.cpp VKNgine/vulkanApp.h)
+        VKNgine/vulkanApp.cpp VKNgine/vulkanApp.h VKNgine/renderdoc.h)
 
 add_library(imgui ${IMGUI_SRC} ${IMGUI_HEADERS})
 include_directories(${IMGUI_DIR} libs/imgui)

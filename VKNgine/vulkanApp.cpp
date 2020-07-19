@@ -21,6 +21,11 @@
 
 #include "vulkanApp.h"
 
+#include "renderdoc.h"
+#include <dlfcn.h>
+
+RENDERDOC_API_1_1_2 *rdoc_api = NULL;
+
 const std::vector < const char* > validationLayers = {
   "VK_LAYER_KHRONOS_validation",
 //  "VK_LAYER_LUNARG_standard_validation"
@@ -46,15 +51,50 @@ const VkDeviceSize bufferSize = sizeof(float) * numOfNumbersToOrder;
 const unsigned int workGroupSize = 32;
 
 std::vector<uint32_t> computeInput(numOfNumbersToOrder);
-std::vector<uint32_t> computeOutput;
+std::vector<uint32_t> computeOutput(numOfNumbersToOrder);
 
 void vulkanApp::run ( )
 {
   std::cout << "Running a Headless Vulkan Compute " << std::endl;
+
+  setupRenderdoc();
+
+  startRenderdocRecording();
   runVulkanCompute ( );
+  endRenderdocRecording();
   cleanup ( );
 }
 
+void vulkanApp::setupRenderdoc()
+{ 
+  std::cout << "Initializing Renderdoc" << std::endl;
+
+  if(void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD))
+  {
+      pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)dlsym(mod, "RENDERDOC_GetAPI");
+      int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
+      assert(ret == 1);
+      std::cout<<"recording" << std::endl;
+  }else
+  {
+      std::cout<<"Renderdoc could not be set up. Failure in recording" << std::endl;
+  }
+}
+
+void vulkanApp::startRenderdocRecording()
+{
+  // To start a frame capture, call StartFrameCapture.
+  // You can specify NULL, NULL for the device to capture on if you have only one device and
+  // either no windows at all or only one window, and it will capture from that device.
+  // See the documentation below for a longer explanation
+  if(rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
+}
+
+void vulkanApp::endRenderdocRecording()
+{
+  // stop the capture
+  if(rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
+}
 
 void vulkanApp::runVulkanCompute ( )
 {
@@ -92,8 +132,6 @@ void vulkanApp::runVulkanCompute ( )
   executeCommandBuffers();
     std::cout << "finished program" << std::endl;
 
-
-
 }
 
 void vulkanApp::executeCommandBuffers()
@@ -113,18 +151,34 @@ void vulkanApp::executeCommandBuffers()
   ////////////////////////////////////////
   //Mete los datos a computeOutput
 
-  void* mappedMemoryDevice = NULL;
+  /*void* mappedMemoryDevice = NULL;
   // Map the buffer memory, so that we can read from it on the CPU.
   vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemoryDevice);
   
   float* pointerMappedMemory = (float *)mappedMemoryDevice;
 
-  computeOutput.reserve(numOfNumbersToOrder);
+  //computeOutput.reserve(numOfNumbersToOrder);
 
   for (unsigned int i = 0; i < numOfNumbersToOrder; i += 1) 
   {
     computeOutput.push_back((float)(pointerMappedMemory[i]));
   }
+  
+  vkUnmapMemory(_device, _computeBufferMemory);*/
+  
+
+  // Make device writes visible to the host
+  void *mapped;
+  vkMapMemory(_device, _computeBufferMemory, 0, VK_WHOLE_SIZE, 0, &mapped);
+  VkMappedMemoryRange mappedRange {};
+  mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;			mappedRange.memory = _computeBufferMemory;
+  mappedRange.offset = 0;
+  mappedRange.size = VK_WHOLE_SIZE;
+  vkInvalidateMappedMemoryRanges(_device, 1, &mappedRange);
+
+  // Copy to output
+  memcpy(computeOutput.data(), mapped, bufferSize);
+  vkUnmapMemory(_device, _computeBufferMemory);
 
   ////////////////////////////////////////////////
 
@@ -142,7 +196,7 @@ void vulkanApp::executeCommandBuffers()
   }
   std::cout << std::endl ;
 
-  vkUnmapMemory(_device, _computeBufferMemory);
+  //vkUnmapMemory(_device, _computeBufferMemory);
 }
 
 //1)Creación de la instancia de la aplicación
@@ -379,24 +433,75 @@ void vulkanApp::createComputePipeline ( )
 
 void vulkanApp::AllocateBuffer()
 {
-
- /* createBuffer ( bufferSize,
-                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-                   | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 stagingBuffer,
-                 stagingBufferMemory );
-    VkBuffer computeDataBuffer;
-    VkDeviceMemory computeDataBufferMemory;   */          
+    
 
     //Visible bit hace que se pueda usar el VKmapMemory
     //Host coherent bit hace que no haga falta hacer flushes
     //usage storage bit indica que este buffer se puede usar en un VKdescriptorbuffer info como storage
     //VK_BUFFER_USAGE_TRANSFER_SRC_BIT permite usar el comando transfer (en  VK_PIPELINE_STAGE_TRANSFER_BIT)
 
-  /*VkBuffer stagingBuffer;
-  VkDeviceMemory stagingBufferMemory;*/
 
+////////////////////
+//Con staging buffer, me da errores y no tengo muy claro porque ni si lo estoy haciendo bien
+////////////////////////
+
+ 	uint32_t n = 0;
+	std::generate(computeInput.begin(), computeInput.end(), [&n] { return rand()/10000000; });
+
+ //hostbuffer --> staging buffer
+ //deviceBuffer --> computeBuffer
+
+ createBuffer ( bufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                 _stagingBuffer,
+                 _stagingBufferMemory );
+                 
+
+  void* mappedData;
+  vkMapMemory ( _device, _stagingBufferMemory, 0, bufferSize, 0, &mappedData );
+  memcpy ( mappedData, computeInput.data ( ), ( size_t ) bufferSize );
+
+  // Flush writes to host visible buffer
+  VkMappedMemoryRange mappedRange {};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+  mappedRange.memory = _stagingBufferMemory;
+  mappedRange.offset = 0;
+  mappedRange.size = VK_WHOLE_SIZE;
+  vkFlushMappedMemoryRanges(_device, 1, &mappedRange);
+  vkUnmapMemory(_device, _stagingBufferMemory);
+
+   
+
+  createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|           VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,  
+                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                   _computeBuffer,_computeBufferMemory );
+
+
+  /*copyBuffer ( _stagingBuffer, _computeBuffer, bufferSize );
+
+
+    //Se destruye el temporal usado para la CPU transfer
+  vkDestroyBuffer ( _device, _stagingBuffer, nullptr );
+  vkFreeMemory ( _device, _stagingBufferMemory, nullptr );*/
+
+  for(unsigned int i=0; i<numOfNumbersToOrder; i++)
+  {
+    std::cout << computeInput[i] << " " ;
+  }
+  std::cout << std::endl ;
+
+
+
+  /////////////////////////
+  //Sin staging buffer. 
+  //Luego el programa me devuelve 0s pero no se si estoy 
+  //haciendo algo bien ya que no me devuelve valores aleatorios que lee de la memoria 
+  //porque devuelve 0s.
+  ///////////////////////////////////////////
+
+/*
+  //interesting read on bit types: https://stackoverflow.com/questions/56594684/transferring-memory-from-gpu-to-cpu-with-vulkan-and-vkinvalidatemappedmemoryrang
   createBuffer(bufferSize,VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,  
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -418,60 +523,7 @@ void vulkanApp::AllocateBuffer()
 		VK_CHECK_RESULT(vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mapped));
 		memcpy(mapped, computeInput.data(), bufferSize);
 		vkUnmapMemory(_device, _computeBufferMemory);
-	}
-
-
-
-
-
-
-
-/*
-  void* mappedMemoryDevice = NULL;
-  // Map the buffer memory, so that we can read from it on the CPU.
-  vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemoryDevice);
-  float* pointerMappedMemory = (float *)mappedMemoryDevice;
-  //computeOutput.reserve(numOfNumbersToOrder);
-  for (unsigned int i = 0; i < numOfNumbersToOrder; i += 1) 
-  {
-    computeOutput.push_back((float)(pointerMappedMemory[i]));
-  }
-
-    for(unsigned int i=0; i<15; i++)
-    {
-      std::cout << computeOutput[i] << " " ;
-    }
-    std::cout << std::endl ;
-
-        // Done reading, so unmap.
-        vkUnmapMemory(_device, _computeBufferMemory);*/
-/*
-  createBuffer(bufferSize,
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		_computeBuffer,
-		_computeBufferMemory);
-
-  copyBuffer ( stagingBuffer, _computeBuffer, bufferSize );
-  vkDestroyBuffer ( _device, stagingBuffer, nullptr );
-  vkFreeMemory ( _device, stagingBufferMemory, nullptr );
-
-
-    void* mappedMemory = NULL;
-
-    vkMapMemory(_device, _computeBufferMemory, 0, bufferSize, 0, &mappedMemory);
-    float* mappedValues= (float*) mappedMemory;
-
-    for(unsigned int i=0; i < numOfNumbersToOrder; i++)
-    {
-      computeOutput.push_back((float) mappedValues[i]);
-    }
-
-    for(unsigned int i=0; i<computeInput.size()15; i++)
-    {
-      std::cout << computeOutput[i] << " " ;
-    }
-    std::cout << std::endl ;*/
+	}*/
 
 }
 
@@ -484,7 +536,9 @@ void vulkanApp::cleanup ( )
   vkDestroyBuffer ( _device, _computeBuffer, nullptr );
   vkFreeMemory ( _device, _computeBufferMemory, nullptr );
 
-  //vkDestroySemaphore(_device,_computeAvailableSemaphore,nullptr);
+  vkDestroyBuffer ( _device, _stagingBuffer, nullptr );
+  vkFreeMemory ( _device, _stagingBufferMemory, nullptr );
+
   vkDestroyCommandPool(_device, _commandPool, nullptr);
 
   vkDestroyPipeline(_device, _computePipeline, nullptr);
@@ -515,64 +569,6 @@ void vulkanApp::createCommandPool ( )
   {
     throw std::runtime_error ( "failed to create graphics command pool!" );
   }
-}
-
-VkFormat vulkanApp::findSupportedFormat ( const std::vector < VkFormat >& candidates,
-                                          VkImageTiling tiling,
-                                          VkFormatFeatureFlags features )
-{
-  for ( VkFormat format : candidates )
-  {
-    VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties ( _physicalDevice,
-                                          format,
-                                          &props );
-
-    if ( tiling == VK_IMAGE_TILING_LINEAR
-      && ( props.linearTilingFeatures & features ) == features )
-    {
-      return format;
-    }
-    else if ( tiling == VK_IMAGE_TILING_OPTIMAL
-      && ( props.optimalTilingFeatures & features ) == features )
-    {
-      return format;
-    }
-  }
-
-  throw std::runtime_error ( "failed to find supported format!" );
-}
-
-void vulkanApp::copyBufferToImage ( VkBuffer buffer,
-                                    VkImage image,
-                                    uint32_t width,
-                                    uint32_t height )
-{
-  VkCommandBuffer commandBuffer = beginSingleTimeCommands ( );
-
-  VkBufferImageCopy region = {};
-  region.bufferOffset = 0;
-  region.bufferRowLength = 0;
-  region.bufferImageHeight = 0;
-  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  region.imageSubresource.mipLevel = 0;
-  region.imageSubresource.baseArrayLayer = 0;
-  region.imageSubresource.layerCount = 1;
-  region.imageOffset = { 0, 0, 0 };
-  region.imageExtent = {
-    width,
-    height,
-    1
-  };
-
-  vkCmdCopyBufferToImage ( commandBuffer,
-                           buffer,
-                           image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1,
-                           &region );
-
-  //endSingleTimeCommands ( commandBuffer );
 }
 
 
@@ -675,26 +671,6 @@ void vulkanApp::createBuffer ( VkDeviceSize size,
   vkBindBufferMemory ( _device, buffer, bufferMemory, 0 );
 }
 
-VkCommandBuffer vulkanApp::beginSingleTimeCommands ( )
-{
-  VkCommandBufferAllocateInfo allocInfo = {};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandPool = _commandPool;
-  allocInfo.commandBufferCount = 1;
-
-  VkCommandBuffer commandBuffer;
-  vkAllocateCommandBuffers ( _device, &allocInfo, &commandBuffer );
-
-  VkCommandBufferBeginInfo beginInfo = {};
-  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-  vkBeginCommandBuffer ( commandBuffer, &beginInfo );
-
-  return commandBuffer;
-}
-
 void vulkanApp::endSingleTimeCommands ( VkCommandBuffer commandBuffer, VkFence fence )
 {
   //vkEndCommandBuffer ( commandBuffer );
@@ -710,18 +686,6 @@ void vulkanApp::endSingleTimeCommands ( VkCommandBuffer commandBuffer, VkFence f
   vkFreeCommandBuffers ( _device, _commandPool, 1, &commandBuffer );
 }
 
-void vulkanApp::copyBuffer ( VkBuffer srcBuffer,
-                             VkBuffer dstBuffer,
-                             VkDeviceSize size )
-{
-  VkCommandBuffer commandBuffer = beginSingleTimeCommands ( );
-
-  VkBufferCopy copyRegion = {};
-  copyRegion.size = size;
-  vkCmdCopyBuffer ( commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion );
-
-  //endSingleTimeCommands ( commandBuffer );
-}
 
 uint32_t vulkanApp::findMemoryType ( uint32_t typeFilter,
                                      VkMemoryPropertyFlags properties )
@@ -751,10 +715,9 @@ void vulkanApp::createCommandBuffers ( )
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = 1;
 
-  if (
-    vkAllocateCommandBuffers ( _device,
+  if (vkAllocateCommandBuffers ( _device,
                                &allocInfo,
-                               &_commandBuffer)
+                               &_commandBuffer) //_commandBuffer
       != VK_SUCCESS )
   {
     throw std::runtime_error ( "failed to allocate command buffers!" );
@@ -767,6 +730,12 @@ void vulkanApp::createCommandBuffers ( )
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     vkBeginCommandBuffer ( _commandBuffer, &beginInfo );
+
+    //copy to staging buffer
+    VkBufferCopy copyRegion = {};
+    copyRegion.size = bufferSize;
+    vkCmdCopyBuffer(_commandBuffer, _stagingBuffer, _computeBuffer, 1, &copyRegion);
+    VK_CHECK_RESULT(vkEndCommandBuffer(_commandBuffer));
 
     vkCmdBindPipeline(_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline);
     // 0:firstSet is the set number of the first descriptor set to be bound.
@@ -796,39 +765,6 @@ void vulkanApp::createSemaphores ( )
 
     throw std::runtime_error ( "failed to create semaphores!" );
   }
-}
-
-void vulkanApp::updateUniformBuffer ( )
-{
-  static auto startTime = std::chrono::high_resolution_clock::now ( );
-
-  auto currentTime = std::chrono::high_resolution_clock::now ( );
-  float time = std::chrono::duration_cast < std::chrono::milliseconds > (
-    currentTime - startTime ).count ( )/1000.0f;
-
-  UniformBufferObject ubo = {};
-  ubo._model = glm::rotate ( glm::mat4 ( 1.0f ),
-                            time*glm::radians ( 90.0f ),
-                            glm::vec3 ( 0.0f, 0.0f, 1.0f ));
-  ubo._view = glm::lookAt ( glm::vec3 ( 2.0f, 2.0f, 2.0f ),
-                           glm::vec3 ( 0.0f, 0.0f, 0.0f ),
-                           glm::vec3 ( 0.0f, 0.0f, 1.0f ));
-  /*ubo._proj = glm::perspective ( glm::radians ( 45.0f ),
-                                _swapChainExtent.width
-                                  /( float ) _swapChainExtent.height,
-                                0.1f,
-                                10.0f );*/
-  ubo._proj[1][1] *= -1; // switching from OGL to Vulkan sys. coord.
-
-  void* data;
-  vkMapMemory ( _device,
-                _computeBufferMemory,
-                0,
-                sizeof ( ubo ),
-                0,
-                &data );
-  memcpy ( data, &ubo, sizeof ( ubo ));
-  vkUnmapMemory ( _device, _computeBufferMemory );
 }
 
 //Generacion de los shader modules a pasarle al pipeline
